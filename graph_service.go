@@ -171,6 +171,27 @@ func (s *GraphService) ImportJSON(jsonStr string) (GraphData, error) {
 		return s.data, fmt.Errorf("JSON解析失败: %w", err)
 	}
 
+	hasExistingData := len(s.data.Entities) > 0
+
+	var offsetX, offsetY float64
+	if hasExistingData {
+		var maxX float64
+		var maxY float64
+		for _, e := range s.data.Entities {
+			if e.X > maxX {
+				maxX = e.X
+			}
+			if e.Y > maxY {
+				maxY = e.Y
+			}
+		}
+
+		offsetX = maxX + 800
+		if len(s.data.Entities) <= 1 {
+			offsetX = 600
+		}
+	}
+
 	existingEntityIDs := make(map[string]bool)
 	for _, e := range s.data.Entities {
 		existingEntityIDs[e.ID] = true
@@ -178,7 +199,7 @@ func (s *GraphService) ImportJSON(jsonStr string) (GraphData, error) {
 
 	idMapping := make(map[string]string)
 
-	for _, e := range imported.Entities {
+	for i, e := range imported.Entities {
 		if e.ID == "" {
 			e.ID = uuid.New().String()
 		}
@@ -187,6 +208,17 @@ func (s *GraphService) ImportJSON(jsonStr string) (GraphData, error) {
 		if existingEntityIDs[e.ID] {
 			e.ID = uuid.New().String()
 			idMapping[originalID] = e.ID
+		}
+
+		if hasExistingData {
+			if e.X == 0 {
+				e.X = float64((i % 4) * 150)
+			}
+			if e.Y == 0 {
+				e.Y = float64((i / 4) * 150)
+			}
+			e.X += offsetX
+			e.Y += offsetY
 		}
 
 		if e.Properties == nil {
