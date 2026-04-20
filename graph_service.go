@@ -171,10 +171,24 @@ func (s *GraphService) ImportJSON(jsonStr string) (GraphData, error) {
 		return s.data, fmt.Errorf("JSON解析失败: %w", err)
 	}
 
+	existingEntityIDs := make(map[string]bool)
+	for _, e := range s.data.Entities {
+		existingEntityIDs[e.ID] = true
+	}
+
+	idMapping := make(map[string]string)
+
 	for _, e := range imported.Entities {
 		if e.ID == "" {
 			e.ID = uuid.New().String()
 		}
+
+		originalID := e.ID
+		if existingEntityIDs[e.ID] {
+			e.ID = uuid.New().String()
+			idMapping[originalID] = e.ID
+		}
+
 		if e.Properties == nil {
 			e.Properties = []Property{}
 		}
@@ -185,6 +199,14 @@ func (s *GraphService) ImportJSON(jsonStr string) (GraphData, error) {
 		if r.ID == "" {
 			r.ID = uuid.New().String()
 		}
+
+		if newSourceID, exists := idMapping[r.Source]; exists {
+			r.Source = newSourceID
+		}
+		if newTargetID, exists := idMapping[r.Target]; exists {
+			r.Target = newTargetID
+		}
+
 		if r.Properties == nil {
 			r.Properties = []Property{}
 		}
@@ -237,12 +259,18 @@ func (s *GraphService) ImportCSVEntities(csvStr string) (GraphData, error) {
 		return s.data, fmt.Errorf("CSV数据不足")
 	}
 
+	existingEntityIDs := make(map[string]bool)
+	for _, e := range s.data.Entities {
+		existingEntityIDs[e.ID] = true
+	}
+
 	headers := records[0]
 	for _, row := range records[1:] {
 		e := Entity{
 			ID:         uuid.New().String(),
 			Properties: []Property{},
 		}
+		var specifiedID string
 		for i, header := range headers {
 			if i >= len(row) {
 				continue
@@ -251,7 +279,7 @@ func (s *GraphService) ImportCSVEntities(csvStr string) (GraphData, error) {
 			switch strings.ToLower(header) {
 			case "id":
 				if val != "" {
-					e.ID = val
+					specifiedID = val
 				}
 			case "type", "typeid":
 				e.TypeID = val
@@ -266,6 +294,12 @@ func (s *GraphService) ImportCSVEntities(csvStr string) (GraphData, error) {
 		if e.Label != "" {
 			if e.TypeID == "" {
 				e.TypeID = "person"
+			}
+			if specifiedID != "" && !existingEntityIDs[specifiedID] {
+				e.ID = specifiedID
+				existingEntityIDs[specifiedID] = true
+			} else {
+				existingEntityIDs[e.ID] = true
 			}
 			s.data.Entities = append(s.data.Entities, e)
 		}
