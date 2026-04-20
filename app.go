@@ -283,6 +283,14 @@ func (a *App) ImportJSONData(jsonStr string) GraphData {
 	return data
 }
 
+func (a *App) ImportJSONDataReplace(jsonStr string) GraphData {
+	data, _ := a.graph.ImportJSONReplace(jsonStr)
+	a.saveToFile()
+	a.history.Record("import_data_replace", "graph", "", "",
+		fmt.Sprintf("替换导入数据 - %d个实体, %d条关系", len(data.Entities), len(data.Relationships)))
+	return data
+}
+
 func (a *App) ExportJSONData() string {
 	return a.graph.ExportJSON()
 }
@@ -295,11 +303,29 @@ func (a *App) ImportCSVEntities(csvStr string) GraphData {
 	return data
 }
 
+func (a *App) ImportCSVEntitiesReplace(csvStr string) GraphData {
+	a.graph.ClearData()
+	data, _ := a.graph.ImportCSVEntities(csvStr)
+	a.saveToFile()
+	a.history.Record("import_data_replace", "graph", "", "",
+		fmt.Sprintf("替换导入CSV实体 - 共%d个实体", len(data.Entities)))
+	return data
+}
+
 func (a *App) ImportCSVRelationships(csvStr string) GraphData {
 	data, _ := a.graph.ImportCSVRelationships(csvStr)
 	a.saveToFile()
 	a.history.Record("import_data", "graph", "", "",
 		fmt.Sprintf("导入CSV关系 - 共%d条关系", len(data.Relationships)))
+	return data
+}
+
+func (a *App) ImportCSVRelationshipsReplace(csvStr string) GraphData {
+	a.graph.ClearData()
+	data, _ := a.graph.ImportCSVRelationships(csvStr)
+	a.saveToFile()
+	a.history.Record("import_data_replace", "graph", "", "",
+		fmt.Sprintf("替换导入CSV关系 - 共%d条关系", len(data.Relationships)))
 	return data
 }
 

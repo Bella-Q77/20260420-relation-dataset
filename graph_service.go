@@ -333,6 +333,64 @@ func (s *GraphService) ClearData() {
 	s.data.Relationships = []Relationship{}
 }
 
+func (s *GraphService) ImportJSONReplace(jsonStr string) (GraphData, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var imported GraphData
+	if err := json.Unmarshal([]byte(jsonStr), &imported); err != nil {
+		return s.data, fmt.Errorf("JSON解析失败: %w", err)
+	}
+
+	s.data.Entities = []Entity{}
+	s.data.Relationships = []Relationship{}
+
+	for _, e := range imported.Entities {
+		if e.ID == "" {
+			e.ID = uuid.New().String()
+		}
+		if e.Properties == nil {
+			e.Properties = []Property{}
+		}
+		s.data.Entities = append(s.data.Entities, e)
+	}
+
+	for _, r := range imported.Relationships {
+		if r.ID == "" {
+			r.ID = uuid.New().String()
+		}
+		if r.Properties == nil {
+			r.Properties = []Property{}
+		}
+		s.data.Relationships = append(s.data.Relationships, r)
+	}
+
+	if len(imported.EntityTypes) > 0 {
+		existing := make(map[string]bool)
+		for _, et := range s.data.EntityTypes {
+			existing[et.ID] = true
+		}
+		for _, et := range imported.EntityTypes {
+			if !existing[et.ID] {
+				s.data.EntityTypes = append(s.data.EntityTypes, et)
+			}
+		}
+	}
+	if len(imported.RelationTypes) > 0 {
+		existing := make(map[string]bool)
+		for _, rt := range s.data.RelationTypes {
+			existing[rt.ID] = true
+		}
+		for _, rt := range imported.RelationTypes {
+			if !existing[rt.ID] {
+				s.data.RelationTypes = append(s.data.RelationTypes, rt)
+			}
+		}
+	}
+
+	return s.data, nil
+}
+
 // ==================== Analysis Algorithms ====================
 
 func (s *GraphService) buildAdjacency() (map[string][]string, map[string][]Relationship) {
