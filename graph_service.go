@@ -11,6 +11,13 @@ import (
 	"github.com/google/uuid"
 )
 
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 type GraphService struct {
 	mu   sync.RWMutex
 	data GraphData
@@ -175,20 +182,77 @@ func (s *GraphService) ImportJSON(jsonStr string) (GraphData, error) {
 
 	var offsetX, offsetY float64
 	if hasExistingData {
-		var maxX float64
-		var maxY float64
+		var existingMinX, existingMaxX, existingMinY, existingMaxY float64
+		firstExisting := true
+		nodeSize := float64(100)
+
 		for _, e := range s.data.Entities {
-			if e.X > maxX {
-				maxX = e.X
-			}
-			if e.Y > maxY {
-				maxY = e.Y
+			if firstExisting {
+				existingMinX = e.X - nodeSize/2
+				existingMaxX = e.X + nodeSize/2
+				existingMinY = e.Y - nodeSize/2
+				existingMaxY = e.Y + nodeSize/2
+				firstExisting = false
+			} else {
+				if e.X-nodeSize/2 < existingMinX {
+					existingMinX = e.X - nodeSize/2
+				}
+				if e.X+nodeSize/2 > existingMaxX {
+					existingMaxX = e.X + nodeSize/2
+				}
+				if e.Y-nodeSize/2 < existingMinY {
+					existingMinY = e.Y - nodeSize/2
+				}
+				if e.Y+nodeSize/2 > existingMaxY {
+					existingMaxY = e.Y + nodeSize/2
+				}
 			}
 		}
 
-		offsetX = maxX + 800
-		if len(s.data.Entities) <= 1 {
-			offsetX = 600
+		var newMinX, newMaxX, newMinY, newMaxY float64
+		hasNewPositions := false
+
+		for _, e := range imported.Entities {
+			if e.X != 0 || e.Y != 0 {
+				hasNewPositions = true
+				if e.X-nodeSize/2 < newMinX || (newMinX == 0 && newMaxX == 0) {
+					newMinX = e.X - nodeSize/2
+				}
+				if e.X+nodeSize/2 > newMaxX || (newMinX == 0 && newMaxX == 0) {
+					newMaxX = e.X + nodeSize/2
+				}
+				if e.Y-nodeSize/2 < newMinY || (newMinY == 0 && newMaxY == 0) {
+					newMinY = e.Y - nodeSize/2
+				}
+				if e.Y+nodeSize/2 > newMaxY || (newMinY == 0 && newMaxY == 0) {
+					newMaxY = e.Y + nodeSize/2
+				}
+			}
+		}
+
+		if !hasNewPositions {
+			gridCols := 4
+			gridSize := float64(180)
+			newMinX = 0
+			newMaxX = float64(minInt(len(imported.Entities), gridCols)) * gridSize
+			newMinY = 0
+			rowCount := (len(imported.Entities) + gridCols - 1) / gridCols
+			newMaxY = float64(rowCount) * gridSize
+		}
+
+		existingWidth := existingMaxX - existingMinX
+		existingHeight := existingMaxY - existingMinY
+
+		if existingWidth > existingHeight {
+			offsetX = existingMaxX + 600 - newMinX
+			existingCenterY := (existingMinY + existingMaxY) / 2
+			newCenterY := (newMinY + newMaxY) / 2
+			offsetY = existingCenterY - newCenterY
+		} else {
+			offsetY = existingMaxY + 600 - newMinY
+			existingCenterX := (existingMinX + existingMaxX) / 2
+			newCenterX := (newMinX + newMaxX) / 2
+			offsetX = existingCenterX - newCenterX
 		}
 	}
 
@@ -198,6 +262,9 @@ func (s *GraphService) ImportJSON(jsonStr string) (GraphData, error) {
 	}
 
 	idMapping := make(map[string]string)
+
+	gridCols := 4
+	gridSize := 180
 
 	for i, e := range imported.Entities {
 		if e.ID == "" {
@@ -211,11 +278,9 @@ func (s *GraphService) ImportJSON(jsonStr string) (GraphData, error) {
 		}
 
 		if hasExistingData {
-			if e.X == 0 {
-				e.X = float64((i % 4) * 150)
-			}
-			if e.Y == 0 {
-				e.Y = float64((i / 4) * 150)
+			if e.X == 0 && e.Y == 0 {
+				e.X = float64((i % gridCols) * gridSize)
+				e.Y = float64((i / gridCols) * gridSize)
 			}
 			e.X += offsetX
 			e.Y += offsetY
